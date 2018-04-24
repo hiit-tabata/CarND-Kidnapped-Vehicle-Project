@@ -1,10 +1,3 @@
-/*
- * particle_filter.cpp
- *
- *  Created on: Dec 12, 2016
- *      Author: Tiffany Huang
- */
-
 #include <random>
 #include <algorithm>
 #include <iostream>
@@ -97,17 +90,17 @@ void ParticleFilter::dataAssociation(std::vector<LandmarkObs> predicted, std::ve
 }
 
 // Calculates weights for each individual particle
+/**
+ * Steps
+ * 1. convert each measurement to map coordinate
+ * 2. find the closest landmark of that observation
+ * 3. calculate the weight for obs x 
+ * 4. Accumulate weight for a particle
+ * 
+ **/
 void ParticleFilter::updateWeights(double sensor_range, double std_landmark[], const std::vector<LandmarkObs> &observations,
 			const Map &map_landmarks)
 {
-
-	// NAIVE WAY - CAN BE OPTIMIZED LATER
-	// STEPS:
-	//  1 - For each particle convert measurements to map coordinate
-	//  2 - For each observation find the closest landmark
-	//  3 - Calculate error for the pair obs x best landmark
-	//  4 - Accumulate error for particle
-
 	// variable to store coords converted to map scale
 	LandmarkObs converted_obs;
 	LandmarkObs best_landmark;
@@ -115,59 +108,53 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[], c
 	// clears weight vector
 	weights.clear();
 
-	// loop through all particles
+	// Loop each particle
 	for (int i = 0; i < int(particles.size()); i++)
 	{
 		double prob = 1.;
-
-		// loop through all observations
+		// Loop all observations
 		for (int k = 0; k < int(observations.size()); k++)
 		{
-			//  1 - For each particle convert measurements to map coordinate
+			//  1. convert measurement to map coordinate
 			LandmarkObs obs = observations[k];
 			Particle part = particles[i];
 			converted_obs.id = obs.id;
 			converted_obs.x = obs.x * cos(part.theta) - obs.y * sin(part.theta) + part.x;
 			converted_obs.y = obs.x * sin(part.theta) + obs.y * cos(part.theta) + part.y;
 
-			//  2 - Assign observation to a landmark
+			double min_dist;
+			//  2. find the closest landmark of that observation
 			for (int m = 0; m < int(map_landmarks.landmark_list.size()); m++)
 			{
-				double min_dist;
-				double distance = dist(converted_obs.x, converted_obs.y, map_landmarks.landmark_list[m].x_f, map_landmarks.landmark_list[m].y_f);
-				if (m == 0)
+				Map::single_landmark_s landmark = map_landmarks.landmark_list[m];
+				double distance = dist(converted_obs.x, converted_obs.y, landmark.x_f, landmark.y_f);
+				if (m == 0 || distance < min_dist) 
 				{
 					min_dist = distance;
-					best_landmark.id = map_landmarks.landmark_list[m].id_i;
-					best_landmark.x = map_landmarks.landmark_list[m].x_f;
-					best_landmark.y = map_landmarks.landmark_list[m].y_f;
-				}
-				else if (distance < min_dist)
-				{
-					min_dist = distance;
-					best_landmark.id = map_landmarks.landmark_list[m].id_i;
-					best_landmark.x = map_landmarks.landmark_list[m].x_f;
-					best_landmark.y = map_landmarks.landmark_list[m].y_f;
+					best_landmark.id 	= landmark.id_i;
+					best_landmark.x 	= landmark.x_f;
+					best_landmark.y 	= landmark.y_f;
 				}
 			}
 
-			//  3 - Calculate weight for the pair obs x best landmark
-			// storing for readability
-			const double sigma_x = std_landmark[0];
-			const double sigma_y = std_landmark[1];
-			const double d_x = converted_obs.x - best_landmark.x;
-			const double d_y = converted_obs.y - best_landmark.y;
+			//  3. calculate the weight for obs x 
+			const double sigma_x 	= std_landmark[0];
+			const double sigma_y 	= std_landmark[1];
+			const double d_x 		= converted_obs.x - best_landmark.x;
+			const double d_y 		= converted_obs.y - best_landmark.y;
 
-			double e = (1 / (2. * M_PI * sigma_x * sigma_y)) * exp(-((d_x * d_x / (2 * sigma_x * sigma_x)) + (d_y * d_y / (2 * sigma_y * sigma_y))));
+			double gauss_norm = (1 / (2. * M_PI * sigma_x * sigma_y));
+			double exponent = -((d_x * d_x / (2 * sigma_x * sigma_x)) + (d_y * d_y / (2 * sigma_y * sigma_y)));
+			double weight = gauss_norm * exp(exponent);
 
-			//  4 - Accumulate weights for particle
-			prob *= e;
+			//  4 Accumulate weight for a particle
+			prob *= weight;
 		}
 
-		// store weight in particle
+		// update particle weight
 		particles[i].weight = prob;
 
-		// and in the weights vector
+		// add into weights vector
 		weights.push_back(prob);
 	}
 }
@@ -221,6 +208,7 @@ string ParticleFilter::getAssociations(Particle best)
 	s = s.substr(0, s.length() - 1); // get rid of the trailing space
 	return s;
 }
+
 string ParticleFilter::getSenseX(Particle best)
 {
 	vector<double> v = best.sense_x;
@@ -230,6 +218,7 @@ string ParticleFilter::getSenseX(Particle best)
 	s = s.substr(0, s.length() - 1); // get rid of the trailing space
 	return s;
 }
+
 string ParticleFilter::getSenseY(Particle best)
 {
 	vector<double> v = best.sense_y;
